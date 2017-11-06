@@ -7,7 +7,7 @@ var fs = require('fs');
 var path = require('path');
 
 var purl = "https://ivweb.io/";
-var commonDir = "/Users/seven/project/downhtml";
+var commonDir = "D:\\JavaFile\\downhtml";
 var pageUrlInfo = url.parse(purl);
 app.get('/', function (req, res) {
     request(purl, function (error, response, body) {
@@ -18,15 +18,17 @@ app.get('/', function (req, res) {
             var downLoadUrl = "";
             $("script[src!='']").each(function (i, elem) {
                 var src = $(this).attr("src");
-                getUrlContent(getUrl(src, purlInfo));
+                //getUrlContent(getUrl(src, purlInfo));
                 $(this).attr("src", removeStr(src));
                 arr.push(src);
             });
             arr.push("")
             $("link[rel='stylesheet']").each(function (i, elem) {
+                //需解析url()
                 ///url\([^()]*[\s\S]*?[^()]*\)/gi
                 var href = $(this).attr("href");
-                getUrlContent(getUrl(href, purlInfo));
+                //request(getUrl(href, purlInfo), cssRequestCallBack);
+                getContent(getUrl(href, purlInfo), cssRequestCallBack);
                 $(this).attr("href", removeStr(href));
                 arr.push(href);
             });
@@ -55,13 +57,13 @@ var getUrl = function (src, urlInfo) {
         var arr1 = src.split("../");
         var pathArr = urlInfo.pathname.split("/");
         pathArr.splice(pathArr.length - arr1.length, arr1.length);
-        return urlInfo.protocol + "//" + urlInfo.host + pathArr.json("/") + src.substr(src.lastIndexOf("../") + 2);
+        return urlInfo.protocol + "//" + urlInfo.host + pathArr.join("/") + src.substr(src.lastIndexOf("../") + 2);
     } else {
         //exp1 ./public/js/index.js?v=8007401866
         //exp2 public/js/index.js?v=8007401866
         var pathArr = src.split("/");
         pathArr[pathArr.length - 1] = src;
-        return urlInfo.protocol + "//" + urlInfo.host + pathArr.json("/");
+        return urlInfo.protocol + "//" + urlInfo.host + pathArr.join("/");
     }
 };
 
@@ -77,18 +79,52 @@ var removeStr = function (str) {
  * 
  * @param {*url} url 
  */
-var getUrlContent = function (_url) {
-    console.log(_url);
+// var getUrlContent = function (_url) {
+//     request(_url, function (error, response, body) {
+//         if (!error && response.statusCode == 200) {
+//             var urlInfo = url.parse(_url);
+//             var path = commonDir + "/";
+//             if (pageUrlInfo.host != urlInfo.host) {
+//                 path += urlInfo.hostname;
+//             }
+//             writeFile(path + urlInfo.pathname, body)
+//         }
+//     })
+// };
+
+
+
+var getContent = function (_url, _callBack) {
     request(_url, function (error, response, body) {
-        if (!error && response.statusCode == 200) {
-            var urlInfo = url.parse(_url);
-            var path = commonDir + "/";
-            if (pageUrlInfo.host != urlInfo.host) {
-                path += urlInfo.hostname;
-            }
-            writeFile(path + urlInfo.pathname, body)
+        if (error || response.statusCode != 200) {
+            return;
         }
-    })
+        var urlInfo = url.parse(_url);
+        var path = commonDir + "/";
+        if (pageUrlInfo.host != urlInfo.host) {
+            path += urlInfo.hostname;
+        }
+        writeFile(path + urlInfo.pathname, body)
+        if (_callBack) {
+            _callBack(urlInfo,body);
+        }
+    });
+};
+
+var cssRequestCallBack = function (purlInfo,body) {
+    //
+    var arrUrl = body.match(/url\([^()]*[\s\S]*?[^()]*\)/gi);
+    for (var index = 0; index < arrUrl.length; index++) {
+        var element = arrUrl[index];
+        var url = getUrl(element.substr(4, element.length - 5), purlInfo);
+        var ext=path.extname(url);
+        var extArr=["png","gif","jpg"];
+        if(ext.toLocaleLowerCase=="phg"){
+
+        }
+        request(url).pipe(fs.createWriteStream('./'+ img_filename));
+        console.log(url);
+    }
 };
 
 //递归创建目录 同步方法  
@@ -109,7 +145,6 @@ function mkdirs(dirname, callback) {
         if (exists) {
             callback();
         } else {
-            //console.log(path.dirname(dirname));  
             mkdirs(path.dirname(dirname), function () {
                 fs.mkdir(dirname, callback);
             });
