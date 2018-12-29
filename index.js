@@ -1,51 +1,50 @@
-var express = require('express');
-var app = express();
-var request = require('request');
-var cheerio = require('cheerio');
-var url = require('url');
-var fs = require('fs');
-var path = require('path');
+const request = require('request');
+const cheerio = require('cheerio');
+const url = require('url');
+const fs = require('fs');
+const path = require('path');
+const iconv = require('iconv-lite')
 
-var purl = "https://ivweb.io/";
-var commonDir = "D:\\JavaFile\\downhtml";
-var pageUrlInfo = url.parse(purl);
-app.get('/', function (req, res) {
-    request(purl, function (error, response, body) {
-        if (!error && response.statusCode == 200) {
-            $ = cheerio.load(body);
-            var arr = [];
-            var purlInfo = url.parse(purl);
-            var downLoadUrl = "";
-            $("script[src!='']").each(function (i, elem) {
-                var src = $(this).attr("src");
-                //getUrlContent(getUrl(src, purlInfo));
-                $(this).attr("src", removeStr(src));
-                arr.push(src);
-            });
-            arr.push("")
-            $("link[rel='stylesheet']").each(function (i, elem) {
-                //需解析url()
-                ///url\([^()]*[\s\S]*?[^()]*\)/gi
-                var href = $(this).attr("href");
-                //request(getUrl(href, purlInfo), cssRequestCallBack);
-                getContent(getUrl(href, purlInfo), cssRequestCallBack);
-                $(this).attr("href", removeStr(href));
-                arr.push(href);
-            });
-            //getUrlContent(purl);
-            writeFile(commonDir + "/index.html", $.html());
-            //res.write(arr.join("<br/>"));
-            res.json(arr);
-        }
-    })
-});
-
-var server = app.listen(3000, function () {
-    console.log('listening at 3000');
-});
+const pageurl = "https://www.qq.com/";
+const commonDir = "D:\\JavaFile\\downhtml";
+const pageUrlInfo = url.parse(pageurl);
+request(pageurl, {
+    encoding: null
+}, function (error, response, bodyBuffer) {
+    if (!error && response.statusCode == 200) {
+        //<meta charset="gb2312">
+        const body = iconv.decode(bodyBuffer, 'gb2312')
+        const $ = cheerio.load(body);
+        var purlInfo = url.parse(pageurl);
+        console.log("js starting...")
+        $("script[src!='']").each(function (i, elem) {
+            var src = $(this).attr("src");
+            getUrlContent(getUrl(src, purlInfo), "js");
+            $(this).attr("src", "js/" + path.basename(src));
+        });
+        console.log("js complete...")
+        console.log("css starting...")
+        $("link[rel='stylesheet'][href!='']").each(function (i, elem) {
+            var href = $(this).attr("href");
+            getCssContent(purlInfo, getUrl(href, purlInfo), 'css');
+            $(this).attr("href", "css/" + path.basename(href));
+        });
+        console.log("css complete...")
+        console.log("picture starting...")
+        $("img[src!='']").each(function (i, elem) {
+            const src = $(this).attr("src");
+            const filename = getStreamContent(getUrl(src, purlInfo), "img");
+            $(this).attr("src", "img/" + filename);
+        })
+        console.log("picture complete...")
+        writeFile(commonDir + "/index.html", $.html());
+    }
+})
 
 var getUrl = function (src, urlInfo) {
-    if (src.indexOf("//") === 0) {
+    if (src.indexOf("http") === 0) {
+        return src
+    } else if (src.indexOf("//") === 0) {
         //exp //7.url.cn/edu/jslib/jquery/1.9.1/jquery.min.js
         //取当前的protocol
         return urlInfo.protocol + src;
@@ -79,20 +78,47 @@ var removeStr = function (str) {
  * 
  * @param {*url} url 
  */
-// var getUrlContent = function (_url) {
-//     request(_url, function (error, response, body) {
-//         if (!error && response.statusCode == 200) {
-//             var urlInfo = url.parse(_url);
-//             var path = commonDir + "/";
-//             if (pageUrlInfo.host != urlInfo.host) {
-//                 path += urlInfo.hostname;
-//             }
-//             writeFile(path + urlInfo.pathname, body)
-//         }
-//     })
-// };
+const getStreamContent = function (url, dirname) {
+    console.log(url)
+    const ext = path.extname(url)
+    let filepath = commonDir + "\\" + dirname + "\\" + path.basename(url);
+    if (ext == "") {
+        filepath += ".jpg"
+    }
+    request
+        .get(url)
+        .on('error', function (err) {
+            console.log(err)
+        })
+        .pipe(fs.createWriteStream(genPath(filepath)))
+    return path.basename(filepath)
+};
 
+const getUrlContent = function (url, dirname) {
+    request(url, function (error, response, body) {
+        if (!error && response.statusCode == 200) {
+            writeFile(commonDir + "/" + dirname + "/" + path.basename(url), body)
+        }
+    })
+};
 
+const getCssContent = function (purlInfo, url, dirname) {
+    request(url, function (error, response, body) {
+        if (!error && response.statusCode == 200) {
+            var arrUrl = body.match(/url\([^()]*[\s\S]*?[^()]*\)/gi);
+            for (var index = 0; index < arrUrl.length; index++) {
+                var element = arrUrl[index];
+                element = element.replace("url(", "")
+                element = element.replace(")", "")
+                element = element.replace(/\"/g, "")
+                console.log(element)
+                const filename = getStreamContent(getUrl(element, purlInfo), "img");
+                body = body.replace(arrUrl[index], "url(img/" + filename+")")
+            }
+            writeFile(commonDir + "/" + dirname + "/" + path.basename(url), body)
+        }
+    })
+};
 
 var getContent = function (_url, _callBack) {
     request(_url, function (error, response, body) {
@@ -106,26 +132,36 @@ var getContent = function (_url, _callBack) {
         }
         writeFile(path + urlInfo.pathname, body)
         if (_callBack) {
-            _callBack(urlInfo,body);
+            _callBack(urlInfo, body);
         }
     });
 };
 
-var cssRequestCallBack = function (purlInfo,body) {
+var cssRequestCallBack = function (purlInfo, body) {
     //
     var arrUrl = body.match(/url\([^()]*[\s\S]*?[^()]*\)/gi);
     for (var index = 0; index < arrUrl.length; index++) {
         var element = arrUrl[index];
         var url = getUrl(element.substr(4, element.length - 5), purlInfo);
-        var ext=path.extname(url);
-        var extArr=["png","gif","jpg"];
-        if(ext.toLocaleLowerCase=="phg"){
+        var ext = path.extname(url);
+        var extArr = ["png", "gif", "jpg"];
+        if (ext.toLocaleLowerCase == "phg") {
 
         }
-        request(url).pipe(fs.createWriteStream('./'+ img_filename));
+        request(url).pipe(fs.createWriteStream('./' + img_filename));
         console.log(url);
     }
 };
+
+function genPath(filepath) {
+    if (fs.existsSync(filepath)) {
+        const random = Math.floor(Math.random() * 10000);
+        const ext = path.extname(filepath);
+        return path.dirname(filepath) + "//" + path.basename(filepath, ext) + "_" + random + ext;
+    } else {
+        return filepath
+    }
+}
 
 //递归创建目录 同步方法  
 function mkdirsSync(dirname) {
