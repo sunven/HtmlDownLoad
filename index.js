@@ -7,6 +7,13 @@ const iconv = require('iconv-lite')
 
 const pageurl = "https://www.qq.com/";
 const commonDir = "D:\\JavaFile\\downhtml";
+const jsdir = "js"
+const cssdir = "css"
+const imgdir = "img"
+delDir(commonDir)
+mkdirsSync(commonDir + '\\' + jsdir)
+mkdirsSync(commonDir + '\\' + cssdir)
+mkdirsSync(commonDir + '\\' + imgdir)
 const pageUrlInfo = url.parse(pageurl);
 request(pageurl, {
     encoding: null
@@ -105,16 +112,16 @@ const getUrlContent = function (url, dirname) {
 const getCssContent = function (purlInfo, url, dirname) {
     request(url, function (error, response, body) {
         if (!error && response.statusCode == 200) {
-            var arrUrl = body.match(/url\([^()]*[\s\S]*?[^()]*\)/gi);
-            for (var index = 0; index < arrUrl.length; index++) {
-                var element = arrUrl[index];
-                element = element.replace("url(", "")
-                element = element.replace(")", "")
-                element = element.replace(/\"/g, "")
-                console.log(element)
-                const filename = getStreamContent(getUrl(element, purlInfo), "img");
-                body = body.replace(arrUrl[index], "url(img/" + filename+")")
-            }
+            // var arrUrl = body.match(/url\([^()]*[\s\S]*?[^()]*\)/gi);
+            // for (var index = 0; index < arrUrl.length; index++) {
+            //     var element = arrUrl[index];
+            //     element = element.replace("url(", "")
+            //     element = element.replace(")", "")
+            //     element = element.replace(/\"/g, "")
+            //     console.log(element)
+            //     const filename = getStreamContent(getUrl(element, purlInfo), "img");
+            //     body = body.replace(arrUrl[index], "url(img/" + filename + ")")
+            // }
             writeFile(commonDir + "/" + dirname + "/" + path.basename(url), body)
         }
     })
@@ -161,6 +168,22 @@ function genPath(filepath) {
     } else {
         return filepath
     }
+}
+
+function delDir(path) {
+    if (!fs.existsSync(path)) {
+        return;
+    }
+    let = files = fs.readdirSync(path);
+    files.forEach((file, index) => {
+        let curPath = path + "/" + file;
+        if (fs.statSync(curPath).isDirectory()) {
+            delDir(curPath); //递归删除文件夹
+        } else {
+            fs.unlinkSync(curPath); //删除文件
+        }
+    });
+    fs.rmdirSync(path);
 }
 
 //递归创建目录 同步方法  
